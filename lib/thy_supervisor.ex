@@ -1,6 +1,8 @@
 defmodule ThySupervisor do
   use GenServer
  
+  # Client side
+
   def start_link(child_spec_list) do
     GenServer.start_link(__MODULE__, [child_spec_list])
   end
@@ -18,7 +20,7 @@ defmodule ThySupervisor do
   end
 
   def count_children(supervisor) do
-    GenServer.call(supervisor, {:count_children})
+    GenServer.call(supervisor, :count_children)
   end
 
   def which_children(supervisor) do
@@ -52,6 +54,7 @@ defmodule ThySupervisor do
     case terminate_child(pid) do
       :ok ->
         new_state = state |> Map.delete(pid)
+	{:reply, :ok, new_state}
       :error ->
         {:reply, {:error, "error terminating child"}, state}
     end
