@@ -9,7 +9,16 @@ defmodule ThySupervisor do
     GenServer.call(supervisor, {:start_child, child_spec})
   end
 
+  def terminate_child(supervisor, pid) when is_pid(pid) do
+    GenServer.call(supervisor, {:terminate_child, pid})
+  end
+
+  def restart_child(supervisor, pid, child_spec) when is_pid(pid) do
+    GenServer.call(supervisor, {:restart_child, pid, child_spec})
+  end
+
   # server side
+
   def init([child_spec_list]) do
     Process.flag(:trap_exit, true)
     state = child_spec_list |> start_children |> Enum.into(HashDict.new)
@@ -24,6 +33,37 @@ defmodule ThySupervisor do
       :error ->
         {:reply, {:error, "error starting child!"}, state}
     end
+  end
+
+  def handle_call({:terminate_child, pid}, _from, state) do
+    case terminate_child(pid) do
+      :ok ->
+        new_state = state |> Map.delete(pid)
+      :error ->
+        {:reply, {:error, "error terminating child"}, state}
+    end
+  end
+
+  def handle_call({:restart_child, old_pid}, _from, state) do
+    case Map.fetch(state, old_pid) do
+      {:ok, child_spec} ->
+        case restart_child(old_pid, child_Spec) do
+          {:ok, {pid, child_spec}} ->
+	    new_state = state 
+	                  |> Map.delete(old_pid)
+			  |> Map.put(pid, child_spec)
+	    {:reply, {:ok, pid}, new_state}
+	  :error ->
+	    {:reply, {:error, "error restarting child"}, state}
+	end
+	_ ->
+	  {:reply, :ok, state}
+    end
+  end
+
+  def handle_info({:EXIT, from, :killed}, state) do
+    new_state = state |> Map.delete(from)
+    {:noreply, new_state}
   end
 
   defp start_child({mod, fun, args}) do
@@ -46,4 +86,23 @@ defmodule ThySupervisor do
   end
 
   defp start_children([]), do: []
+
+  defp terminate_child(pid) do
+    Process.exit(pid, :kill)
+    :ok
+  end
+
+  defp restart_child(pid, child_spec) when is_pid(pid) do
+    case terminate_child(pid) do
+      :ok ->
+        case start_child(child_spec) do
+          {:ok, new_pid} ->
+	    {:ok, {new_pid, child_spec}}
+	  :error ->
+	    :error
+	end
+      :error ->
+        :error
+    end
+  end
 end
