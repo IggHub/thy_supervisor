@@ -7,7 +7,7 @@ defmodule ThySupervisor do
     GenServer.start_link(__MODULE__, [child_spec_list])
   end
 
-  def start_child(superisor, child_spec) do
+  def start_child(supervisor, child_spec) do
     GenServer.call(supervisor, {:start_child, child_spec})
   end
 
@@ -36,7 +36,7 @@ defmodule ThySupervisor do
 
   def init([child_spec_list]) do
     Process.flag(:trap_exit, true)
-    state = child_spec_list |> start_children |> Enum.into(HashDict.new)
+    state = child_spec_list |> start_children |> Enum.into(Map.new)
     {:ok, state}
   end
 
@@ -63,7 +63,7 @@ defmodule ThySupervisor do
   def handle_call({:restart_child, old_pid}, _from, state) do
     case Map.fetch(state, old_pid) do
       {:ok, child_spec} ->
-        case restart_child(old_pid, child_Spec) do
+        case restart_child(old_pid, child_spec) do
           {:ok, {pid, child_spec}} ->
 	    new_state = state 
 	                  |> Map.delete(old_pid)
@@ -95,11 +95,11 @@ defmodule ThySupervisor do
     {:noreply, new_state}
   end
 
-  def handle_info({:EXIT, old_pid, reason}, state) do
+  def handle_info({:EXIT, old_pid, _reason}, state) do
     case Map.fetch(state, old_pid) do
       {:ok, child_spec} ->
         case restart_child(old_pid, child_spec) do
-	  {:ok, {pid, child_Spec}} ->
+	  {:ok, {pid, child_spec}} ->
 	    new_state = state |> Map.delete(old_pid) |> Map.put(pid, child_spec)
 	    {:noreply, new_state}
 	  :error ->
@@ -160,8 +160,4 @@ defmodule ThySupervisor do
     child_specs |> Enum.each(fn {pid, _} -> terminate_child(pid) end)
   end
 
-  defp terminate_child(pid) do
-    Process.exit(pid, :kill)
-    :ok
-  end
 end
